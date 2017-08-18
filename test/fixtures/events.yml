@@ -1,0 +1,26 @@
+# == Schema Information
+#
+# Table name: events
+#
+#  id               :integer          not null, primary key
+#  starts_at        :datetime
+#  ends_at          :datetime
+#  kind             :string
+#  weekly_recurring :boolean
+#  created_at       :datetime         not null
+#  updated_at       :datetime         not null
+#
+
+# Read about fixtures at http://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  starts_at: 2017-08-17 18:23:51
+  ends_at: 2017-08-17 18:23:51
+  kind: MyString
+  weekly_recurring: false
+
+two:
+  starts_at: 2017-08-17 18:23:51
+  ends_at: 2017-08-17 18:23:51
+  kind: MyString
+  weekly_recurring: false
