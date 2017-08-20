@@ -15,19 +15,18 @@ class Event < ActiveRecord::Base
 
   validate :round_times
 
-  def self.recuring_openings(days = nil)
-    recuring_openings_arr = where(kind: 'opening', weekly_recurring: true).order(:starts_at).to_a
-    recuring_openings_hash = {}
+  def self.recurring_openings(days = nil)
+    recurring_openings_arr = where(kind: 'opening', weekly_recurring: true).order(:starts_at).to_a
+    recurring_openings_hash = {}
     if days.present?
-      recuring_openings_arr.keep_if do |opening|
+      recurring_openings_arr.keep_if do |opening|
         days.include?(opening.starts_at.wday) || days.include?(opening.ends_at.wday)
       end
     end
-    recuring_openings_arr.group_by{|opening| opening.starts_at.wday }
+    recurring_openings_arr.group_by{|opening| opening.starts_at.wday }
   end
 
   def self.availabilities(search_starts_at = DateTime.now, search_ends_at = search_starts_at + 6.days)
-    default_duration = 30 #minutes
     search_ends_at = search_ends_at.end_of_day
     availabilities = []
     return availabilities if search_starts_at > search_ends_at
@@ -39,13 +38,7 @@ class Event < ActiveRecord::Base
 
     availabilities_hash = {}
     openings.each do |opening|
-      current_date = opening.starts_at
-      begin
-        date_key = current_date.strftime("%F")
-        availabilities_hash[date_key] ||= []
-        availabilities_hash[date_key] << current_date.strftime("%H:%M")
-        current_date = current_date + default_duration.minutes
-      end while current_date < opening.ends_at
+      availabilities_hash = create_slots(opening.starts_at, opening.ends_at, availabilities_hash)
     end
 
     # Handle weekly recurring events
@@ -53,20 +46,14 @@ class Event < ActiveRecord::Base
       days_for_search = (search_starts_at..search_ends_at).map{|i| i.wday}
     end
 
-    recuring_openings_hash = recuring_openings(days_for_search)
+    recurring_openings_hash = recurring_openings(days_for_search)
     (search_starts_at..search_ends_at).each do |search_datetime|
-      next unless recuring_openings_hash[search_datetime.wday]
+      next unless recurring_openings_hash[search_datetime.wday]
 
-      recuring_openings_hash[search_datetime.wday].each do |opening|
+      recurring_openings_hash[search_datetime.wday].each do |opening|
         start_date = DateTime.parse("#{search_datetime.strftime("%F")} #{opening.starts_at.strftime("%H:%M")}")
         end_date = start_date + (opening.ends_at - opening.starts_at).seconds
-        current_date = start_date
-        begin
-          date_key = current_date.strftime("%F")
-          availabilities_hash[date_key] ||= []
-          availabilities_hash[date_key] << current_date.strftime("%H:%M")
-          current_date = current_date + default_duration.minutes
-        end while current_date < end_date
+        availabilities_hash = create_slots(start_date, end_date, availabilities_hash)
       end
     end
 
@@ -77,18 +64,12 @@ class Event < ActiveRecord::Base
 
     appointments_hash = {}
     appointments.each do |appointment|
-      current_date = appointment.starts_at
-      begin
-        date_key = current_date.strftime("%F")
-        appointments_hash[date_key] ||= []
-        appointments_hash[date_key] << current_date.strftime("%H:%M")
-        current_date = current_date + default_duration.minutes
-      end while current_date < appointment.ends_at
+      appointments_hash = create_slots(appointment.starts_at, appointment.ends_at, appointments_hash)
     end
 
     # Removing appointments from availabilities_hash
     appointments_hash.each do |k,v|
-      availabilities_hash[k] = availabilities_hash[k] - v
+      availabilities_hash[k] = availabilities_hash[k] - v if availabilities_hash[k]
     end
 
     # Sorting and formating
@@ -120,6 +101,17 @@ class Event < ActiveRecord::Base
           errors.add(attributes[i], 'seconds must be 0')
         end
       end
+    end
+
+    def self.create_slots(start_time, end_time, slots_hash)
+      current_date = start_time
+      begin
+        date_key = current_date.strftime("%F")
+        slots_hash[date_key] ||= []
+        slots_hash[date_key] << current_date.strftime("%H:%M")
+        current_date = current_date + DEFAULT_SLOT_DURATION.minutes
+      end while current_date < end_time
+      return slots_hash
     end
 
 end

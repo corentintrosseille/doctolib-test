@@ -1,0 +1,1 @@
+DEFAULT_SLOT_DURATION = 30 #minutes
